@@ -1,0 +1,275 @@
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# This data is tracking a markets sales
+# the column called payment_method tells us how the customer paid
+# The column called order_total tells us the total price for a specific order
+df = pd.read_csv('finalproject.csv')
+
+print('these are the first five rows')
+print(df.head())
+print('this is the shape')
+print(df.shape)
+
+print('\nThese are the columns we are working with')
+print(df.columns)
+print('\nDataset Information')
+df.info()
+
+print('\nSummary Statistics')
+print(df.describe())
+
+print('Dtype info')
+print(df.dtypes)
+
+print('\nMissing values in each column:')
+print(df.isnull().sum())
+
+print('\nNumber of duplicate rows:')
+print(df.duplicated(subset='order_id').sum())
+
+"""we have 4 problems
+
+
+* missing values in  multiple columns
+* multiple duplicates
+* date and order_id columns' dtype is wrong
+* city formating is inconsistent
+
+
+
+
+
+
+
+
+"""
+
+df_cleaned = df.drop_duplicates().copy()
+df_cleaned['order_date'] = pd.to_datetime(
+    df_cleaned['order_date'],
+    format='mixed',
+    dayfirst=True
+)
+df_cleaned['order_id'] = df_cleaned['order_id'].astype(str)
+
+
+# Filling missing values using the median
+df_cleaned['order_total'] = df_cleaned['order_total'].fillna(df_cleaned['order_total'].median())
+df_cleaned['customer_rating'] = df_cleaned['customer_rating'].fillna(df_cleaned['customer_rating'].median())
+df_cleaned['customer_age'] = df_cleaned['customer_age'].fillna(df_cleaned['customer_age'].median())
+df_cleaned = df_cleaned.dropna()
+
+
+# Fixing city column formatting
+df_cleaned['city'] = df_cleaned['city'].str.strip().str.capitalize()
+df_cleaned['city'] = df_cleaned['city'].replace('Alex', 'Alexandria')
+
+# Fixing product category column formatting
+df_cleaned['product_category'] = df_cleaned['product_category'].str.strip().str.capitalize()
+print(df_cleaned['product_category'].unique())
+
+# Fixing payment method column formatting
+df_cleaned['payment_method'] = df_cleaned['payment_method'].str.strip().str.capitalize()
+df_cleaned['payment_method'] = df_cleaned['payment_method'].replace('Wallet', 'Cash')
+print(df_cleaned['payment_method'].unique())
+
+
+print('\nNumber of nans after cleaning:')
+print(df_cleaned.isna().sum())
+print('\nUnique cities after cleaning:')
+print(df_cleaned['city'].unique())
+
+
+
+#removing illogical negative values
+
+
+df_cleaned = df_cleaned[df_cleaned['order_total'] > 0].copy()
+Q1_ortotal = df_cleaned['order_total'].quantile(0.25)
+Q3_ortotal = df_cleaned['order_total'].quantile(0.75)
+IQR_ortotal = Q3_ortotal - Q1_ortotal
+
+lower_bound_ortotal = Q1_ortotal - 1.5 * IQR_ortotal
+upper_bound_ortotal = Q3_ortotal + 1.5 * IQR_ortotal
+
+
+
+# removing illogical negative values
+df_cleaned = df_cleaned[df_cleaned['customer_age'] > 0].copy()
+Q1_age = df_cleaned['customer_age'].quantile(0.25)
+Q3_age = df_cleaned['customer_age'].quantile(0.75)
+IQR_age = Q3_age - Q1_age
+
+lower_bound_age = Q1_age - 1.5 * IQR_age
+upper_bound_age = Q3_age + 1.5 * IQR_age
+
+
+outliers_ortotal = df_cleaned[(df_cleaned['order_total'] < lower_bound_ortotal) | (df_cleaned['order_total'] > upper_bound_ortotal)]
+
+
+outliers_age = df_cleaned[(df_cleaned['customer_age'] < lower_bound_age) | (df_cleaned['customer_age'] > upper_bound_age)]
+
+
+#drop illogical ages
+df_cleaned = df_cleaned[~df_cleaned.index.isin(outliers_age.index)]
+
+
+
+
+print(f'Lower Bound: {lower_bound_ortotal}')
+print(f'Upper Bound: {upper_bound_ortotal}')
+print(f'Total outliers found: {len(outliers_ortotal)}')
+
+print(outliers_ortotal)
+print(outliers_age)
+
+# outliers here are most likely premium purchases not errors
+
+"""we have 3 questions now
+
+
+* is there any corraletion between payment method and location
+* is there any corraletion between age and order total
+* which categories have the highest revenue
+
+
+
+"""
+import os
+
+os.makedirs("figures", exist_ok=True)
+
+
+plt.figure(figsize=(8,6))
+corr = df_cleaned.corr(numeric_only=True)
+sns.heatmap(corr, annot=True, cmap='coolwarm', linewidths=0.5)
+plt.title("Correlation Matrix")
+plt.savefig("figures/correlation_matrix.png", dpi=300, bbox_inches='tight')
+plt.show()
+
+plt.figure(figsize=(10,6))
+
+sns.scatterplot(x='customer_age', y='order_total', data=df_cleaned, color='steelblue')
+
+sns.regplot(x='customer_age', y='order_total', data=df_cleaned, scatter=False, line_kws={'color':'crimson', 'linewidth':3})
+
+plt.title("Do Older Customers Spend More?")
+plt.xlabel("Customer Age")
+plt.ylabel("Order Total (EGP)")
+plt.grid(alpha=0.3)
+
+plt.savefig("figures/age_vs_order_total.png", dpi=300, bbox_inches='tight')
+plt.show()
+
+plt.figure(figsize=(10,6))
+
+sns.boxplot(x=df_cleaned['order_total'], color='lightblue'
+            ,whis=1.5,
+            showfliers=True
+            ,flierprops ={'marker': 'o'
+                          ,'markerfacecolor':'red'
+                          ,'markeredgecolor':'black'
+                          ,'markersize':6})
+
+plt.title("Order Total Distribution")
+plt.xlabel("Order Total")
+
+plt.savefig("figures/order_total_boxplot.png", dpi=300, bbox_inches='tight')
+plt.show()
+
+plt.figure(figsize=(10,6))
+
+sns.histplot(df_cleaned['customer_age'], bins=20, kde=True, color='green')
+
+plt.title("Customer Age Distribution")
+plt.xlabel("Age")
+plt.ylabel("Frequency")
+
+plt.savefig("figures/customer_age_distribution.png", dpi=300, bbox_inches='tight')
+plt.show()
+
+plt.figure(figsize=(10,6))
+
+sns.histplot(df_cleaned['order_total'], bins=30, kde=True, color='steelblue')
+
+plt.title("Order Total Distribution")
+plt.xlabel("Order Total")
+plt.ylabel("Frequency")
+
+plt.savefig("figures/order_total_distribution.png", dpi=300, bbox_inches='tight')
+plt.show()
+
+plt.figure(figsize=(8,5))
+
+sns.countplot(x='payment_method', data=df_cleaned, order=df_cleaned['payment_method'].value_counts().index)
+
+plt.title("Payment Method Distribution")
+plt.xticks(rotation=30)
+
+plt.savefig("figures/payment_method_distribution.png", dpi=300, bbox_inches='tight')
+plt.show()
+
+plt.figure(figsize=(10,6))
+
+sns.countplot(x='city', data=df_cleaned, order=df_cleaned['city'].value_counts().index)
+
+plt.title("Orders per City")
+plt.xticks(rotation=45)
+
+plt.savefig("figures/city_distribution.png", dpi=300, bbox_inches='tight')
+plt.show()
+
+payment_location = pd.crosstab(df_cleaned['city'], df_cleaned['payment_method'])
+
+plt.figure(figsize=(10,6))
+sns.heatmap(payment_location, annot=True, fmt='d', cmap='Blues')
+
+plt.title("Payment Method by City")
+
+plt.savefig("figures/payment_method_by_city.png", dpi=300, bbox_inches='tight')
+plt.show()
+
+category_revenue = df_cleaned.groupby('product_category')['order_total'].sum().sort_values(ascending=False)
+
+plt.figure(figsize=(10,6))
+
+sns.barplot(x=category_revenue.index, y=category_revenue.values, color='steelblue')
+
+plt.title("Revenue by Category")
+plt.xticks(rotation=45)
+
+plt.savefig("figures/revenue_by_category.png", dpi=300, bbox_inches='tight')
+plt.show()
+
+city_revenue = df_cleaned.groupby('city')['order_total'].sum().sort_values(ascending=False)
+
+plt.figure(figsize=(10,6))
+
+sns.barplot(x=city_revenue.index, y=city_revenue.values, color='green')
+
+plt.title("Revenue by City")
+plt.xticks(rotation=45)
+
+plt.savefig("figures/revenue_by_city.png", dpi=300, bbox_inches='tight')
+plt.show()
+
+
+
+plt.savefig("figures/payment_method_share.png", dpi=300, bbox_inches='tight')
+plt.show()
+
+
+
+
+#Cairo city residents have a higher average for using Cash
+#Electronics have the highest revenue
+#Alexandria has lower order rates
+
+
+#hypothesis:Higher cash rates could be caused by several factors such as lack of support for non-cash options and a prefence in people ,because they do not know better
+#hypothesis:
+#Electronics have higher revenue numbers that could be caused by Electronics being in general significantly more expensive than the alternates and that is the most likely conclusion
