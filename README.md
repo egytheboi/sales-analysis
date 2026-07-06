@@ -122,8 +122,7 @@ sales-analysis/
 │   ├── city_distribution.png
 │   ├── payment_method_by_city.png
 │   ├── revenue_by_category.png
-│   ├── revenue_by_city.png
-│   └── payment_method_share.png
+│   └── revenue_by_city.png
 ```
 
 ---
